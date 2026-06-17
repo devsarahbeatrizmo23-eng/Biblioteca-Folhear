@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-1: #DDF8C3;
+    --color-2: #C5ECAC;
+    --color-3: #A8E1DF;
+    --color-4: #88C7DB;
+    --color-5: #5D97D1;
+    --background: #F9FFFB;
+    --foreground: #1a2e1a;
+    --card: #ffffff;
+    --card-foreground: #1a2e1a;
+    --border: #e2f0e2;
+    --input: #e2f0e2;
+    --ring: #88C7DB;
+    --radius: 0.5rem;
+  }
+
+  * {
+    border-color: var(--border);
+    box-sizing: border-box;
+  }
+
+  body {
+    background-color: #F9FFFB;
+    color: var(--foreground);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    line-height: 1.3;
+  }
+}
+
+@layer utilities {
+  .bg-color-1 { background-color: #DDF8C3; }
+  .bg-color-2 { background-color: #C5ECAC; }
+  .bg-color-3 { background-color: #A8E1DF; }
+  .bg-color-4 { background-color: #88C7DB; }
+  .bg-color-5 { background-color: #5D97D1; }
+  .text-color-1 { color: #DDF8C3; }
+  .text-color-2 { color: #C5ECAC; }
+  .text-color-3 { color: #A8E1DF; }
+  .text-color-4 { color: #88C7DB; }
+  .text-color-5 { color: #5D97D1; }
+  .border-color-1 { border-color: #DDF8C3; }
+  .border-color-2 { border-color: #C5ECAC; }
+  .border-color-3 { border-color: #A8E1DF; }
+  .border-color-4 { border-color: #88C7DB; }
+  .border-color-5 { border-color: #5D97D1; }
+  .hover\:bg-color-1:hover { background-color: #DDF8C3; }
+  .hover\:bg-color-2:hover { background-color: #C5ECAC; }
+  .hover\:bg-color-3:hover { background-color: #A8E1DF; }
+  .hover\:bg-color-4:hover { background-color: #88C7DB; }
+  .hover\:bg-color-5:hover { background-color: #5D97D1; }
+  .focus\:ring-color-4:focus { --tw-ring-color: #88C7DB; }
+  .focus\:border-color-4:focus { border-color: #88C7DB; }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F9FFFB;
+}
+::-webkit-scrollbar-thumb {
+  background: #88C7DB;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #5D97D1;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in {
+  animation: slideIn 0.2s ease-out;
+}
