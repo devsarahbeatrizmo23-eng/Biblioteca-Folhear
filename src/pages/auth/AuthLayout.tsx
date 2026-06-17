@@ -59,7 +59,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
 
         <div className="relative w-full max-w-md animate-fade-in px-4 py-8">
           {/* Logo */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-0">
             <img src="/folhear-logo.svg" alt="Folhear" className="w-40 h-40 mx-auto" />
           </div>
 
