@@ -57,9 +57,9 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
           style={{ backgroundColor: '#88C7DB' }}
         />
 
-        <div className="relative w-full max-w-md animate-fade-in px-4 py-8 flex flex-col items-center justify-center">
+        <div className="relative w-full max-w-md animate-fade-in px-4 py-8">
           {/* Logo */}
-          <div className="text-center mb-2">
+          <div className="text-center -mb-8">
             <img src="/folhear-logo.svg" alt="Folhear" className="w-40 h-40 mx-auto" />
           </div>
 
