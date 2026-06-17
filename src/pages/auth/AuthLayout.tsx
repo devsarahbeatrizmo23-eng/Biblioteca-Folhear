@@ -46,7 +46,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
       </div>
 
       {/* Right panel — the form */}
-      <div className="flex-1 relative bg-gradient-to-br from-[#DDF8C3] via-[#F9FFFB] to-[#A8E1DF] flex items-center justify-center h-screen overflow-hidden">
+      <div className="flex-1 relative bg-gradient-to-br from-[#DDF8C3] via-[#F9FFFB] to-[#A8E1DF] flex items-start justify-center h-screen overflow-y-auto py-8">
         {/* Decorative blobs */}
         <div
           className="absolute top-0 left-0 w-80 h-80 rounded-full opacity-30 blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none"
