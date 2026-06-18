@@ -49,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           const userData: User = {
             id: uuidToNumber(profile.id),
+            uuid: session.user.id, // UUID original do Supabase
             name: profile.name,
             email: session.user.email || '',
             role: profile.role,
@@ -83,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             
             const userData: User = {
               id: uuidToNumber(profile.id),
+              uuid: session.user.id, // UUID original do Supabase
               name: profile.name,
               email: session.user.email || '',
               role: profile.role,
@@ -123,6 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         const userData: User = {
           id: uuidToNumber(profile.id),
+          uuid: data.session.user.id, // UUID original do Supabase
           name: profile.name,
           email: data.session.user.email || '',
           role: profile.role,

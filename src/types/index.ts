@@ -2,6 +2,7 @@ export type UserRole = 'admin' | 'leitor';
 
 export interface User {
   id: number;
+  uuid: string; // UUID do Supabase Auth
   name: string;
   email: string;
   role: UserRole;

@@ -24,7 +24,7 @@ export function HistoryPage() {
     if (!user) return;
     checkOverdueLoans();
     // Buscar do Supabase usando o UUID do usuário
-    const data = await getLoansByUserFromSupabase(user.id.toString());
+    const data = await getLoansByUserFromSupabase(user.uuid);
     setLoans(data);
     setFiltered(data);
   }, [user]);
