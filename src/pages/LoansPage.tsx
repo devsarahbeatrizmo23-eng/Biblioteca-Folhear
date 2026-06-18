@@ -52,6 +52,10 @@ export function LoansPage() {
   const toast = useToast();
   const isAdmin = user?.role === 'admin';
 
+  console.log('👤 User atual:', user);
+  console.log('🔑 isAdmin:', isAdmin);
+  console.log('📊 Role:', user?.role);
+
   const [loans, setLoans] = useState<Loan[]>([]);
   const [filtered, setFiltered] = useState<Loan[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -69,13 +73,16 @@ export function LoansPage() {
     const allLoans = getAllLoans();
     setLoans(allLoans);
     setFiltered(allLoans);
-    if (isAdmin) {
-      const usersData = await getAllUsersFromSupabase();
-      const booksData = await getAllBooksFromSupabase();
-      setUsers(usersData);
-      setBooks(booksData);
-    }
-  }, [isAdmin]);
+    
+    // Carregar usuários e livros do Supabase sempre (não apenas se admin)
+    console.log('📥 Carregando usuários e livros do Supabase...');
+    const usersData = await getAllUsersFromSupabase();
+    console.log('✅ Usuários carregados:', usersData.length);
+    const booksData = await getAllBooksFromSupabase();
+    console.log('✅ Livros carregados:', booksData.length);
+    setUsers(usersData);
+    setBooks(booksData);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -134,8 +141,17 @@ export function LoansPage() {
 
   const onSubmit = async (data: LoanFormData) => {
     try {
+      console.log('📝 Dados do formulário:', {
+        user_id: data.user_id,
+        user_id_type: typeof data.user_id,
+        book_id: data.book_id,
+        book_id_type: typeof data.book_id,
+      });
+      console.log('👤 Usuário selecionado:', users.find((u) => u.id === data.user_id));
+      console.log('📚 Livro selecionado:', books.find((b) => b.id === parseInt(data.book_id, 10)));
+
       await createLoan({
-        user_id: parseInt(data.user_id, 10),
+        user_id: data.user_id, // UUID é string, não número!
         book_id: parseInt(data.book_id, 10),
         loan_date: data.loan_date,
         expected_return_date: data.expected_return_date,
@@ -146,6 +162,7 @@ export function LoansPage() {
       loadData();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao registrar empréstimo';
+      console.error('❌ Erro completo:', err);
       toast.error('Erro', message);
     }
   };

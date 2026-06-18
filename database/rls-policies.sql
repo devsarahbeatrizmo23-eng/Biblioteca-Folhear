@@ -69,18 +69,11 @@ CREATE POLICY "Enable delete for authenticated users on emprestimo"
 -- Habilitar RLS (se ainda não estiver)
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- Política de SELECT: cada usuário pode ver seu próprio perfil e admins veem todos
-CREATE POLICY "Enable read access for own profile or admin" 
+-- Política de SELECT: usuários autenticados podem ler qualquer perfil
+CREATE POLICY "Enable read access for authenticated users" 
   ON profiles 
   FOR SELECT 
-  USING (
-    auth.uid() = id 
-    OR 
-    EXISTS (
-      SELECT 1 FROM profiles 
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (auth.role() = 'authenticated');
 
 -- Política de INSERT: qualquer usuário autenticado pode criar seu próprio perfil
 CREATE POLICY "Enable insert for self" 

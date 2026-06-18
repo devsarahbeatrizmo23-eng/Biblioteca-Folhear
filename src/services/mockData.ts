@@ -426,7 +426,7 @@ export function getLoansByUser(userId: number): Loan[] {
 }
 
 export async function createLoan(data: {
-  user_id: number;
+  user_id: string; // UUID string, não number
   book_id: number;
   loan_date: string;
   expected_return_date: string;
@@ -434,17 +434,41 @@ export async function createLoan(data: {
 }): Promise<Loan> {
   const loans = load<Loan>(STORAGE_KEYS.LOANS);
   const books = load<Book>(STORAGE_KEYS.BOOKS);
-  const users = load<StoredUser>(STORAGE_KEYS.USERS);
 
-  const book = books.find((b) => b.id === data.book_id);
-  const user = users.find((u) => u.id === data.user_id);
+  console.log('🔍 Buscando livro ID:', data.book_id);
+  console.log('🔍 Buscando usuário UUID:', data.user_id);
 
-  if (!book) throw new Error('Livro não encontrado');
-  if (!user) throw new Error('Usuário não encontrado');
-  if (book.available_quantity <= 0) throw new Error('Livro indisponível para empréstimo');
+  // Buscar livro do Supabase
+  const { data: supabaseBooks, error: bookError } = await supabase
+    .from('livro')
+    .select('*')
+    .eq('id', data.book_id)
+    .single();
 
-  // Tentar salvar no Supabase primeiro
-  let supabaseLoan: Loan | null = null;
+  if (bookError || !supabaseBooks) {
+    console.error('Livro não encontrado no Supabase:', bookError);
+    throw new Error('Livro não encontrado');
+  }
+
+  // Buscar usuário (profile) do Supabase
+  const { data: supabaseProfile, error: userError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', data.user_id)
+    .single();
+
+  if (userError || !supabaseProfile) {
+    console.error('Usuário não encontrado no Supabase:', userError);
+    throw new Error('Usuário não encontrado');
+  }
+
+  if (supabaseBooks.available_quantity <= 0) {
+    throw new Error('Livro indisponível para empréstimo');
+  }
+
+  console.log('✅ Livro e usuário encontrados, criando empréstimo...');
+
+  // Tentar salvar no Supabase
   try {
     const { data: insertedLoan, error: loanError } = await supabase
       .from('emprestimo')
@@ -463,76 +487,54 @@ export async function createLoan(data: {
       .single();
 
     if (loanError) {
-      console.error('Erro ao salvar empréstimo no Supabase:', loanError);
-    } else if (insertedLoan) {
-      supabaseLoan = {
-        id: insertedLoan.id,
-        user_id: insertedLoan.user_id,
-        book_id: insertedLoan.book_id,
-        loan_date: insertedLoan.loan_date,
-        expected_return_date: insertedLoan.expected_return_date,
-        actual_return_date: insertedLoan.actual_return_date,
-        status: insertedLoan.status,
-        observations: insertedLoan.observations,
-        created_at: insertedLoan.created_at,
-        user_name: user.name,
-        user_email: user.email,
-        book_title: book.title,
-        book_author: book.author,
-      };
-
-      // Atualizar quantidade disponível do livro no Supabase
-      const bookIdx = books.findIndex((b) => b.id === data.book_id);
-      if (bookIdx !== -1) {
-        books[bookIdx].available_quantity -= 1;
-        const { error: bookError } = await supabase
-          .from('livro')
-          .update({ available_quantity: books[bookIdx].available_quantity })
-          .eq('id', data.book_id);
-
-        if (bookError) {
-          console.error('Erro ao atualizar disponibilidade no Supabase:', bookError);
-        }
-      }
+      console.error('❌ Erro ao salvar empréstimo no Supabase:', loanError);
+      throw new Error(`Erro ao criar empréstimo: ${loanError.message}`);
     }
-  } catch (err) {
-    console.error('Erro ao sincronizar empréstimo com Supabase:', err);
-  }
 
-  // Se conseguiu salvar no Supabase, usar esse empréstimo
-  if (supabaseLoan) {
-    loans.push(supabaseLoan);
+    if (!insertedLoan) {
+      throw new Error('Falha ao criar empréstimo');
+    }
+
+    console.log('✅ Empréstimo criado no Supabase:', insertedLoan.id);
+
+    // Atualizar quantidade disponível do livro no Supabase
+    const { error: updateError } = await supabase
+      .from('livro')
+      .update({ available_quantity: supabaseBooks.available_quantity - 1 })
+      .eq('id', data.book_id);
+
+    if (updateError) {
+      console.error('⚠️ Erro ao atualizar disponibilidade:', updateError);
+    } else {
+      console.log('✅ Disponibilidade do livro atualizada');
+    }
+
+    // Construir objeto Loan para retornar
+    const newLoan: Loan = {
+      id: insertedLoan.id,
+      user_id: insertedLoan.user_id,
+      book_id: insertedLoan.book_id,
+      loan_date: insertedLoan.loan_date,
+      expected_return_date: insertedLoan.expected_return_date,
+      actual_return_date: insertedLoan.actual_return_date,
+      status: insertedLoan.status,
+      observations: insertedLoan.observations,
+      created_at: insertedLoan.created_at,
+      user_name: supabaseProfile.name,
+      user_email: supabaseProfile.id, // UUID como email
+      book_title: supabaseBooks.title,
+      book_author: supabaseBooks.author,
+    };
+
+    // Salvar no localStorage como cache
+    loans.push(newLoan);
     save(STORAGE_KEYS.LOANS, loans);
-    
-    // Atualizar counter local
-    localStorage.setItem(`${STORAGE_KEYS.COUNTER}_loans`, String(supabaseLoan.id));
-    return supabaseLoan;
+
+    return newLoan;
+  } catch (err) {
+    console.error('❌ Erro ao criar empréstimo:', err);
+    throw err instanceof Error ? err : new Error('Erro ao criar empréstimo');
   }
-
-  // Senão, usar ID local como fallback
-  const id = nextId('loans');
-  const newLoan: Loan = {
-    id,
-    ...data,
-    actual_return_date: null,
-    status: 'pendente',
-    observations: data.observations || '',
-    created_at: new Date().toISOString(),
-    user_name: user.name,
-    user_email: user.email,
-    book_title: book.title,
-    book_author: book.author,
-  };
-
-  // Update book availability
-  const bookIdx = books.findIndex((b) => b.id === data.book_id);
-  books[bookIdx].available_quantity -= 1;
-  save(STORAGE_KEYS.BOOKS, books);
-
-  loans.push(newLoan);
-  save(STORAGE_KEYS.LOANS, loans);
-
-  return newLoan;
 }
 
 export async function returnLoan(id: number): Promise<Loan> {
@@ -693,18 +695,28 @@ export function getUserLoanStats(userId: number) {
 
 export async function getAllUsersFromSupabase(): Promise<User[]> {
   try {
+    console.log('🔍 Buscando usuários do Supabase (profiles table)...');
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .order('name', { ascending: true });
 
+    console.log('📊 Resposta profiles:', { dataLength: data?.length, error });
+
     if (error) {
-      console.error('Erro ao buscar usuários do Supabase:', error);
+      console.error('❌ Erro ao buscar usuários do Supabase:', error.message, error.code);
+      console.log('⚠️ Retornando dados mock como fallback');
       // Fallback para dados mock
       return getAllUsers();
     }
 
-    return (data || []).map((profile: any) => ({
+    if (!data || data.length === 0) {
+      console.warn('⚠️ Nenhum usuário encontrado no Supabase! Retornando mock.');
+      return getAllUsers();
+    }
+
+    console.log(`✅ ${data.length} usuários encontrados no Supabase`);
+    return data.map((profile: any) => ({
       id: profile.id,
       name: profile.name,
       email: profile.id, // O UUID é usado como ID
@@ -712,7 +724,7 @@ export async function getAllUsersFromSupabase(): Promise<User[]> {
       created_at: profile.created_at,
     }));
   } catch (err) {
-    console.error('Erro ao buscar usuários:', err);
+    console.error('❌ Erro geral ao buscar usuários:', err);
     // Fallback para dados mock
     return getAllUsers();
   }
