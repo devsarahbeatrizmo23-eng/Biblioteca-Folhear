@@ -20,8 +20,8 @@ import {
   createLoan,
   returnLoan,
   deleteLoan,
-  getAllUsers,
-  getAllBooks,
+  getAllUsersFromSupabase,
+  getAllBooksFromSupabase,
   checkOverdueLoans,
 } from '../services/mockData';
 import { Button } from '../components/ui/Button';
@@ -64,14 +64,16 @@ export function LoansPage() {
   const [bookSearch, setBookSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     checkOverdueLoans();
     const allLoans = getAllLoans();
     setLoans(allLoans);
     setFiltered(allLoans);
     if (isAdmin) {
-      setUsers(getAllUsers());
-      setBooks(getAllBooks());
+      const usersData = await getAllUsersFromSupabase();
+      const booksData = await getAllBooksFromSupabase();
+      setUsers(usersData);
+      setBooks(booksData);
     }
   }, [isAdmin]);
 
@@ -132,7 +134,7 @@ export function LoansPage() {
 
   const onSubmit = async (data: LoanFormData) => {
     try {
-      createLoan({
+      await createLoan({
         user_id: parseInt(data.user_id, 10),
         book_id: parseInt(data.book_id, 10),
         loan_date: data.loan_date,
@@ -151,7 +153,7 @@ export function LoansPage() {
   const handleReturn = async (id: number) => {
     setIsProcessing(true);
     try {
-      returnLoan(id);
+      await returnLoan(id);
       toast.success('Livro devolvido!', 'A devolução foi registrada com sucesso.');
       loadData();
       setReturnConfirmId(null);
@@ -166,7 +168,7 @@ export function LoansPage() {
   const handleDelete = async (id: number) => {
     setIsProcessing(true);
     try {
-      deleteLoan(id);
+      await deleteLoan(id);
       toast.success('Empréstimo excluído!');
       loadData();
       setDeleteConfirmId(null);

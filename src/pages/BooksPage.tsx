@@ -157,10 +157,10 @@ export function BooksPage() {
         available_quantity: parseInt(data.available_quantity || '0', 10),
       };
       if (editingBook) {
-        updateBook(editingBook.id, bookData);
+        await updateBook(editingBook.id, bookData);
         toast.success('Livro atualizado!', `"${data.title}" foi atualizado com sucesso.`);
       } else {
-        createBook(bookData);
+        await createBook(bookData);
         toast.success('Livro cadastrado!', `"${data.title}" foi adicionado ao acervo.`);
       }
       loadBooks();
@@ -174,7 +174,7 @@ export function BooksPage() {
   const handleDelete = async (id: number) => {
     setIsDeleting(true);
     try {
-      deleteBook(id);
+      await deleteBook(id);
       toast.success('Livro removido!', 'O livro foi excluído do acervo.');
       loadBooks();
       setDeleteConfirmId(null);

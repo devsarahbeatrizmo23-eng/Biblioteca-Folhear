@@ -1,4 +1,5 @@
 import { User, Book, Loan, UserRole } from '../types';
+import { supabase } from './supabase';
 
 // ──────────────────────────────────────────────────────────────────────
 // Helpers
@@ -297,7 +298,7 @@ export function getBookById(id: number): Book | undefined {
   return load<Book>(STORAGE_KEYS.BOOKS).find((b) => b.id === id);
 }
 
-export function createBook(data: Omit<Book, 'id' | 'created_at'>): Book {
+export async function createBook(data: Omit<Book, 'id' | 'created_at'>): Promise<Book> {
   const books = load<Book>(STORAGE_KEYS.BOOKS);
   if (data.isbn && books.find((b) => b.isbn === data.isbn)) {
     throw new Error('ISBN já cadastrado');
@@ -306,21 +307,77 @@ export function createBook(data: Omit<Book, 'id' | 'created_at'>): Book {
   const newBook: Book = { id, ...data, created_at: new Date().toISOString() };
   books.push(newBook);
   save(STORAGE_KEYS.BOOKS, books);
+
+  // Salvar também no Supabase
+  try {
+    const { error } = await supabase
+      .from('livro')
+      .insert([
+        {
+          id: newBook.id,
+          title: newBook.title,
+          author: newBook.author,
+          publisher: newBook.publisher,
+          isbn: newBook.isbn,
+          category: newBook.category,
+          publication_year: newBook.publication_year,
+          total_quantity: newBook.total_quantity,
+          available_quantity: newBook.available_quantity,
+          created_at: newBook.created_at,
+        },
+      ]);
+
+    if (error) {
+      console.error('Erro ao salvar livro no Supabase:', error);
+    }
+  } catch (err) {
+    console.error('Erro ao sincronizar livro com Supabase:', err);
+  }
+
   return newBook;
 }
 
-export function updateBook(id: number, data: Partial<Omit<Book, 'id' | 'created_at'>>): Book {
+export async function updateBook(id: number, data: Partial<Omit<Book, 'id' | 'created_at'>>): Promise<Book> {
   const books = load<Book>(STORAGE_KEYS.BOOKS);
   const idx = books.findIndex((b) => b.id === id);
   if (idx === -1) throw new Error('Livro não encontrado');
   books[idx] = { ...books[idx], ...data };
   save(STORAGE_KEYS.BOOKS, books);
+
+  // Atualizar também no Supabase
+  try {
+    const { error } = await supabase
+      .from('livro')
+      .update(data)
+      .eq('id', id);
+
+    if (error) {
+      console.error('Erro ao atualizar livro no Supabase:', error);
+    }
+  } catch (err) {
+    console.error('Erro ao sincronizar livro com Supabase:', err);
+  }
+
   return books[idx];
 }
 
-export function deleteBook(id: number): void {
+export async function deleteBook(id: number): Promise<void> {
   const books = load<Book>(STORAGE_KEYS.BOOKS).filter((b) => b.id !== id);
   save(STORAGE_KEYS.BOOKS, books);
+
+  // Deletar também do Supabase
+  try {
+    const { error } = await supabase
+      .from('livro')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Erro ao deletar livro do Supabase:', error);
+    }
+  } catch (err) {
+    console.error('Erro ao sincronizar deleção com Supabase:', err);
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -334,13 +391,13 @@ export function getLoansByUser(userId: number): Loan[] {
   return load<Loan>(STORAGE_KEYS.LOANS).filter((l) => l.user_id === userId);
 }
 
-export function createLoan(data: {
+export async function createLoan(data: {
   user_id: number;
   book_id: number;
   loan_date: string;
   expected_return_date: string;
   observations?: string;
-}): Loan {
+}): Promise<Loan> {
   const loans = load<Loan>(STORAGE_KEYS.LOANS);
   const books = load<Book>(STORAGE_KEYS.BOOKS);
   const users = load<StoredUser>(STORAGE_KEYS.USERS);
@@ -373,10 +430,46 @@ export function createLoan(data: {
 
   loans.push(newLoan);
   save(STORAGE_KEYS.LOANS, loans);
+
+  // Salvar também no Supabase
+  try {
+    const { error: loanError } = await supabase
+      .from('emprestimo')
+      .insert([
+        {
+          id: newLoan.id,
+          user_id: data.user_id,
+          book_id: data.book_id,
+          loan_date: newLoan.loan_date,
+          expected_return_date: newLoan.expected_return_date,
+          actual_return_date: null,
+          status: newLoan.status,
+          observations: newLoan.observations,
+          created_at: newLoan.created_at,
+        },
+      ]);
+
+    if (loanError) {
+      console.error('Erro ao salvar empréstimo no Supabase:', loanError);
+    }
+
+    // Atualizar quantidade disponível do livro
+    const { error: bookError } = await supabase
+      .from('livro')
+      .update({ available_quantity: books[bookIdx].available_quantity })
+      .eq('id', data.book_id);
+
+    if (bookError) {
+      console.error('Erro ao atualizar disponibilidade no Supabase:', bookError);
+    }
+  } catch (err) {
+    console.error('Erro ao sincronizar empréstimo com Supabase:', err);
+  }
+
   return newLoan;
 }
 
-export function returnLoan(id: number): Loan {
+export async function returnLoan(id: number): Promise<Loan> {
   const loans = load<Loan>(STORAGE_KEYS.LOANS);
   const books = load<Book>(STORAGE_KEYS.BOOKS);
 
@@ -402,6 +495,37 @@ export function returnLoan(id: number): Loan {
   }
 
   save(STORAGE_KEYS.LOANS, loans);
+
+  // Atualizar também no Supabase
+  try {
+    const returnDate = new Date().toISOString().split('T')[0];
+    const { error: loanError } = await supabase
+      .from('emprestimo')
+      .update({
+        status: 'devolvido',
+        actual_return_date: returnDate,
+      })
+      .eq('id', id);
+
+    if (loanError) {
+      console.error('Erro ao atualizar empréstimo no Supabase:', loanError);
+    }
+
+    // Atualizar quantidade disponível do livro
+    if (bookIdx !== -1) {
+      const { error: bookError } = await supabase
+        .from('livro')
+        .update({ available_quantity: books[bookIdx].available_quantity })
+        .eq('id', loan.book_id);
+
+      if (bookError) {
+        console.error('Erro ao atualizar disponibilidade no Supabase:', bookError);
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao sincronizar devolução com Supabase:', err);
+  }
+
   return loans[loanIdx];
 }
 
@@ -414,7 +538,7 @@ export function updateLoan(id: number, data: Partial<Loan>): Loan {
   return loans[idx];
 }
 
-export function deleteLoan(id: number): void {
+export async function deleteLoan(id: number): Promise<void> {
   const loans = load<Loan>(STORAGE_KEYS.LOANS);
   const loan = loans.find((l) => l.id === id);
   if (loan && loan.status !== 'devolvido') {
@@ -426,9 +550,33 @@ export function deleteLoan(id: number): void {
         books[bookIdx].total_quantity
       );
       save(STORAGE_KEYS.BOOKS, books);
+
+      // Atualizar no Supabase
+      try {
+        await supabase
+          .from('livro')
+          .update({ available_quantity: books[bookIdx].available_quantity })
+          .eq('id', loan.book_id);
+      } catch (err) {
+        console.error('Erro ao sincronizar deleção com Supabase:', err);
+      }
     }
   }
   save(STORAGE_KEYS.LOANS, loans.filter((l) => l.id !== id));
+
+  // Deletar também do Supabase
+  try {
+    const { error } = await supabase
+      .from('emprestimo')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Erro ao deletar empréstimo do Supabase:', error);
+    }
+  } catch (err) {
+    console.error('Erro ao sincronizar deleção do Supabase:', err);
+  }
 }
 
 // Check and update overdue loans
@@ -471,4 +619,106 @@ export function getUserLoanStats(userId: number) {
     pendingLoans: loans.filter((l) => l.status === 'pendente').length,
     returnedLoans: loans.filter((l) => l.status === 'devolvido').length,
   };
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Supabase Functions - Fetch real data from database
+// ──────────────────────────────────────────────────────────────────────
+
+export async function getAllUsersFromSupabase(): Promise<User[]> {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('Erro ao buscar usuários do Supabase:', error);
+      // Fallback para dados mock
+      return getAllUsers();
+    }
+
+    return (data || []).map((profile: any) => ({
+      id: profile.id,
+      name: profile.name,
+      email: profile.id, // O UUID é usado como ID
+      role: profile.role,
+      created_at: profile.created_at,
+    }));
+  } catch (err) {
+    console.error('Erro ao buscar usuários:', err);
+    // Fallback para dados mock
+    return getAllUsers();
+  }
+}
+
+export async function getAllBooksFromSupabase(): Promise<Book[]> {
+  try {
+    const { data, error } = await supabase
+      .from('livro')
+      .select('*')
+      .order('title', { ascending: true });
+
+    if (error) {
+      console.error('Erro ao buscar livros do Supabase:', error);
+      // Fallback para dados mock
+      return getAllBooks();
+    }
+
+    return (data || []).map((book: any) => ({
+      id: book.id,
+      title: book.title,
+      author: book.author,
+      publisher: book.publisher,
+      isbn: book.isbn,
+      category: book.category,
+      publication_year: book.publication_year,
+      total_quantity: book.total_quantity,
+      available_quantity: book.available_quantity,
+      created_at: book.created_at,
+    }));
+  } catch (err) {
+    console.error('Erro ao buscar livros:', err);
+    // Fallback para dados mock
+    return getAllBooks();
+  }
+}
+
+export async function getAllLoansFromSupabase(): Promise<Loan[]> {
+  try {
+    const { data, error } = await supabase
+      .from('emprestimo')
+      .select(`
+        *,
+        profiles:user_id(name, id),
+        livro:book_id(title, author)
+      `)
+      .order('loan_date', { ascending: false });
+
+    if (error) {
+      console.error('Erro ao buscar empréstimos do Supabase:', error);
+      // Fallback para dados mock
+      return getAllLoans();
+    }
+
+    return (data || []).map((loan: any) => ({
+      id: loan.id,
+      user_id: loan.user_id,
+      book_id: loan.book_id,
+      loan_date: loan.loan_date,
+      expected_return_date: loan.expected_return_date,
+      actual_return_date: loan.actual_return_date,
+      status: loan.status,
+      observations: loan.observations,
+      created_at: loan.created_at,
+      user_name: loan.profiles?.name || '',
+      user_email: loan.user_id,
+      book_title: loan.livro?.title || '',
+      book_author: loan.livro?.author || '',
+    }));
+  } catch (err) {
+    console.error('Erro ao buscar empréstimos:', err);
+    // Fallback para dados mock
+    return getAllLoans();
+  }
 }
