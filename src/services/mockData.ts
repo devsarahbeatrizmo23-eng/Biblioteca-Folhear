@@ -307,6 +307,8 @@ export async function createBook(data: Omit<Book, 'id' | 'created_at'>): Promise
   // Tentar salvar primeiro no Supabase
   let supabaseBook: Book | null = null;
   try {
+    console.log('Tentando inserir livro no Supabase:', data);
+    
     const { data: insertedBook, error } = await supabase
       .from('livro')
       .insert([
@@ -321,27 +323,34 @@ export async function createBook(data: Omit<Book, 'id' | 'created_at'>): Promise
           available_quantity: data.available_quantity,
         },
       ])
-      .select()
-      .single();
+      .select();
+
+    console.log('Resposta do Supabase:', { insertedBook, error });
 
     if (error) {
       console.error('Erro ao salvar livro no Supabase:', error);
-    } else if (insertedBook) {
+      throw new Error(`Erro Supabase: ${error.message}`);
+    } 
+    
+    if (insertedBook && insertedBook.length > 0) {
+      const book = insertedBook[0];
       supabaseBook = {
-        id: insertedBook.id,
-        title: insertedBook.title,
-        author: insertedBook.author,
-        publisher: insertedBook.publisher,
-        isbn: insertedBook.isbn,
-        category: insertedBook.category,
-        publication_year: insertedBook.publication_year,
-        total_quantity: insertedBook.total_quantity,
-        available_quantity: insertedBook.available_quantity,
-        created_at: insertedBook.created_at,
+        id: book.id,
+        title: book.title,
+        author: book.author,
+        publisher: book.publisher,
+        isbn: book.isbn,
+        category: book.category,
+        publication_year: book.publication_year,
+        total_quantity: book.total_quantity,
+        available_quantity: book.available_quantity,
+        created_at: book.created_at,
       };
+      console.log('Livro inserido com sucesso no Supabase:', supabaseBook);
     }
   } catch (err) {
     console.error('Erro ao sincronizar livro com Supabase:', err);
+    // Se houver erro, continuar com fallback
   }
 
   // Se conseguiu salvar no Supabase, usar esse livro
@@ -354,6 +363,7 @@ export async function createBook(data: Omit<Book, 'id' | 'created_at'>): Promise
   }
 
   // Senão, usar ID local como fallback
+  console.warn('Usando fallback local para criar livro');
   const id = nextId('books');
   const newBook: Book = { id, ...data, created_at: new Date().toISOString() };
   books.push(newBook);
@@ -710,17 +720,27 @@ export async function getAllUsersFromSupabase(): Promise<User[]> {
 
 export async function getAllBooksFromSupabase(): Promise<Book[]> {
   try {
+    console.log('Buscando livros do Supabase...');
     const { data, error } = await supabase
       .from('livro')
       .select('*')
       .order('title', { ascending: true });
 
+    console.log('Resposta do Supabase:', { data, error });
+
     if (error) {
       console.error('Erro ao buscar livros do Supabase:', error);
       // Fallback para dados mock
+      console.log('Usando fallback para dados mock');
       return getAllBooks();
     }
 
+    if (!data || data.length === 0) {
+      console.log('Nenhum livro encontrado no Supabase, retornando dados mock');
+      return getAllBooks();
+    }
+
+    console.log(`Retornando ${data.length} livros do Supabase`);
     return (data || []).map((book: any) => ({
       id: book.id,
       title: book.title,
