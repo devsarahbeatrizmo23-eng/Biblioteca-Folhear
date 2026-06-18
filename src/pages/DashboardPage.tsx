@@ -20,8 +20,6 @@ import {
   checkOverdueLoans,
   getAllLoans,
   getLoansByUser,
-  getAllBooksFromSupabase,
-  getAllUsersFromSupabase,
 } from '../services/mockData';
 import { LoanStatusBadge } from '../components/ui/Badge';
 import { Loan } from '../types';
@@ -34,32 +32,18 @@ export function DashboardPage() {
   const [stats, setStats] = useState<ReturnType<typeof getDashboardStats> | null>(null);
   const [userStats, setUserStats] = useState<ReturnType<typeof getUserLoanStats> | null>(null);
   const [recentLoans, setRecentLoans] = useState<Loan[]>([]);
-  const [totalBooks, setTotalBooks] = useState(0);
-  const [totalUsers, setTotalUsers] = useState(0);
 
   useEffect(() => {
-    const loadDashboard = async () => {
-      checkOverdueLoans();
-      
-      if (isAdmin) {
-        // Buscar dados do Supabase
-        const books = await getAllBooksFromSupabase();
-        const users = await getAllUsersFromSupabase();
-        setTotalBooks(books.length);
-        setTotalUsers(users.length);
-        
-        // Usar dados locais para empréstimos
-        setStats(getDashboardStats());
-        const loans = getAllLoans().slice(-5).reverse();
-        setRecentLoans(loans);
-      } else if (user) {
-        setUserStats(getUserLoanStats(user.id));
-        const loans = getLoansByUser(user.id).slice(-5).reverse();
-        setRecentLoans(loans);
-      }
-    };
-    
-    loadDashboard();
+    checkOverdueLoans();
+    if (isAdmin) {
+      setStats(getDashboardStats());
+      const loans = getAllLoans().slice(-5).reverse();
+      setRecentLoans(loans);
+    } else if (user) {
+      setUserStats(getUserLoanStats(user.id));
+      const loans = getLoansByUser(user.id).slice(-5).reverse();
+      setRecentLoans(loans);
+    }
   }, [isAdmin, user]);
 
   const formatDate = (dateStr: string) => {
@@ -112,27 +96,27 @@ export function DashboardPage() {
       </div>
 
       {/* Admin Stats */}
-      {isAdmin && (
+      {isAdmin && stats && (
         <>
           <div>
             <h2 className="text-lg font-semibold text-gray-700 mb-4">Resumo do Sistema</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <StatCard
                 title="Títulos no Acervo"
-                value={totalBooks}
-                subtitle={`${stats?.totalBooksCopies || 0} exemplares • ${stats?.availableBooks || 0} disponíveis`}
+                value={stats.totalBooks}
+                subtitle={`${stats.totalBooksCopies} exemplares • ${stats.availableBooks} disponíveis`}
                 icon={<BookOpen className="w-6 h-6" />}
                 topBorderColor="color-3"
                 onClick={() => navigate('/livros')}
               />
               <StatCard
                 title="Empréstimos Ativos"
-                value={stats?.activeLoans || 0}
-                subtitle={`${stats?.overdueLoans || 0} atrasado(s)`}
+                value={stats.activeLoans}
+                subtitle={`${stats.overdueLoans} atrasado(s)`}
                 icon={<ClipboardList className="w-6 h-6" />}
                 topBorderColor="color-4"
                 trend={
-                  stats && stats.overdueLoans > 0
+                  stats.overdueLoans > 0
                     ? { value: `${stats.overdueLoans} em atraso`, positive: false }
                     : undefined
                 }
@@ -140,7 +124,7 @@ export function DashboardPage() {
               />
               <StatCard
                 title="Usuários Cadastrados"
-                value={totalUsers}
+                value={stats.totalUsers}
                 subtitle="Administradores e leitores"
                 icon={<Users className="w-6 h-6" />}
                 topBorderColor="color-5"
