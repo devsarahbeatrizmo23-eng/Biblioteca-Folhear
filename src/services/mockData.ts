@@ -2,6 +2,19 @@ import { User, Book, Loan, UserRole } from '../types';
 import { supabase } from './supabase';
 
 // ──────────────────────────────────────────────────────────────────────
+// Converter UUID para número para compatibilidade com banco
+// ──────────────────────────────────────────────────────────────────────
+function uuidToNumber(uuid: string): number {
+  let hash = 0;
+  for (let i = 0; i < uuid.length; i++) {
+    const char = uuid.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash) || 1;
+}
+
+// ──────────────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────────────
 const STORAGE_KEYS = {
@@ -470,11 +483,18 @@ export async function createLoan(data: {
 
   // Tentar salvar no Supabase
   try {
+    // Converter UUID para número para compatibilidade com banco que espera INT
+    const userIdAsNumber = uuidToNumber(data.user_id);
+    console.log('🔄 Convertendo UUID em número:', {
+      uuid: data.user_id,
+      numero: userIdAsNumber,
+    });
+
     const { data: insertedLoan, error: loanError } = await supabase
       .from('emprestimo')
       .insert([
         {
-          user_id: data.user_id,
+          user_id: userIdAsNumber, // Usar número em vez de UUID
           book_id: data.book_id,
           loan_date: data.loan_date,
           expected_return_date: data.expected_return_date,
