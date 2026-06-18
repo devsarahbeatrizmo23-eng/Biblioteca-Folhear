@@ -303,37 +303,61 @@ export async function createBook(data: Omit<Book, 'id' | 'created_at'>): Promise
   if (data.isbn && books.find((b) => b.isbn === data.isbn)) {
     throw new Error('ISBN já cadastrado');
   }
-  const id = nextId('books');
-  const newBook: Book = { id, ...data, created_at: new Date().toISOString() };
-  books.push(newBook);
-  save(STORAGE_KEYS.BOOKS, books);
 
-  // Salvar também no Supabase
+  // Tentar salvar primeiro no Supabase
+  let supabaseBook: Book | null = null;
   try {
-    const { error } = await supabase
+    const { data: insertedBook, error } = await supabase
       .from('livro')
       .insert([
         {
-          id: newBook.id,
-          title: newBook.title,
-          author: newBook.author,
-          publisher: newBook.publisher,
-          isbn: newBook.isbn,
-          category: newBook.category,
-          publication_year: newBook.publication_year,
-          total_quantity: newBook.total_quantity,
-          available_quantity: newBook.available_quantity,
-          created_at: newBook.created_at,
+          title: data.title,
+          author: data.author,
+          publisher: data.publisher,
+          isbn: data.isbn,
+          category: data.category,
+          publication_year: data.publication_year,
+          total_quantity: data.total_quantity,
+          available_quantity: data.available_quantity,
         },
-      ]);
+      ])
+      .select()
+      .single();
 
     if (error) {
       console.error('Erro ao salvar livro no Supabase:', error);
+    } else if (insertedBook) {
+      supabaseBook = {
+        id: insertedBook.id,
+        title: insertedBook.title,
+        author: insertedBook.author,
+        publisher: insertedBook.publisher,
+        isbn: insertedBook.isbn,
+        category: insertedBook.category,
+        publication_year: insertedBook.publication_year,
+        total_quantity: insertedBook.total_quantity,
+        available_quantity: insertedBook.available_quantity,
+        created_at: insertedBook.created_at,
+      };
     }
   } catch (err) {
     console.error('Erro ao sincronizar livro com Supabase:', err);
   }
 
+  // Se conseguiu salvar no Supabase, usar esse livro
+  if (supabaseBook) {
+    books.push(supabaseBook);
+    save(STORAGE_KEYS.BOOKS, books);
+    // Atualizar contador local
+    localStorage.setItem(`${STORAGE_KEYS.COUNTER}_books`, String(supabaseBook.id));
+    return supabaseBook;
+  }
+
+  // Senão, usar ID local como fallback
+  const id = nextId('books');
+  const newBook: Book = { id, ...data, created_at: new Date().toISOString() };
+  books.push(newBook);
+  save(STORAGE_KEYS.BOOKS, books);
   return newBook;
 }
 
@@ -409,6 +433,73 @@ export async function createLoan(data: {
   if (!user) throw new Error('Usuário não encontrado');
   if (book.available_quantity <= 0) throw new Error('Livro indisponível para empréstimo');
 
+  // Tentar salvar no Supabase primeiro
+  let supabaseLoan: Loan | null = null;
+  try {
+    const { data: insertedLoan, error: loanError } = await supabase
+      .from('emprestimo')
+      .insert([
+        {
+          user_id: data.user_id,
+          book_id: data.book_id,
+          loan_date: data.loan_date,
+          expected_return_date: data.expected_return_date,
+          actual_return_date: null,
+          status: 'pendente',
+          observations: data.observations || '',
+        },
+      ])
+      .select()
+      .single();
+
+    if (loanError) {
+      console.error('Erro ao salvar empréstimo no Supabase:', loanError);
+    } else if (insertedLoan) {
+      supabaseLoan = {
+        id: insertedLoan.id,
+        user_id: insertedLoan.user_id,
+        book_id: insertedLoan.book_id,
+        loan_date: insertedLoan.loan_date,
+        expected_return_date: insertedLoan.expected_return_date,
+        actual_return_date: insertedLoan.actual_return_date,
+        status: insertedLoan.status,
+        observations: insertedLoan.observations,
+        created_at: insertedLoan.created_at,
+        user_name: user.name,
+        user_email: user.email,
+        book_title: book.title,
+        book_author: book.author,
+      };
+
+      // Atualizar quantidade disponível do livro no Supabase
+      const bookIdx = books.findIndex((b) => b.id === data.book_id);
+      if (bookIdx !== -1) {
+        books[bookIdx].available_quantity -= 1;
+        const { error: bookError } = await supabase
+          .from('livro')
+          .update({ available_quantity: books[bookIdx].available_quantity })
+          .eq('id', data.book_id);
+
+        if (bookError) {
+          console.error('Erro ao atualizar disponibilidade no Supabase:', bookError);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao sincronizar empréstimo com Supabase:', err);
+  }
+
+  // Se conseguiu salvar no Supabase, usar esse empréstimo
+  if (supabaseLoan) {
+    loans.push(supabaseLoan);
+    save(STORAGE_KEYS.LOANS, loans);
+    
+    // Atualizar counter local
+    localStorage.setItem(`${STORAGE_KEYS.COUNTER}_loans`, String(supabaseLoan.id));
+    return supabaseLoan;
+  }
+
+  // Senão, usar ID local como fallback
   const id = nextId('loans');
   const newLoan: Loan = {
     id,
@@ -430,41 +521,6 @@ export async function createLoan(data: {
 
   loans.push(newLoan);
   save(STORAGE_KEYS.LOANS, loans);
-
-  // Salvar também no Supabase
-  try {
-    const { error: loanError } = await supabase
-      .from('emprestimo')
-      .insert([
-        {
-          id: newLoan.id,
-          user_id: data.user_id,
-          book_id: data.book_id,
-          loan_date: newLoan.loan_date,
-          expected_return_date: newLoan.expected_return_date,
-          actual_return_date: null,
-          status: newLoan.status,
-          observations: newLoan.observations,
-          created_at: newLoan.created_at,
-        },
-      ]);
-
-    if (loanError) {
-      console.error('Erro ao salvar empréstimo no Supabase:', loanError);
-    }
-
-    // Atualizar quantidade disponível do livro
-    const { error: bookError } = await supabase
-      .from('livro')
-      .update({ available_quantity: books[bookIdx].available_quantity })
-      .eq('id', data.book_id);
-
-    if (bookError) {
-      console.error('Erro ao atualizar disponibilidade no Supabase:', bookError);
-    }
-  } catch (err) {
-    console.error('Erro ao sincronizar empréstimo com Supabase:', err);
-  }
 
   return newLoan;
 }

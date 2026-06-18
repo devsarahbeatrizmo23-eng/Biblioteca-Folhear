@@ -16,6 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import {
   getAllBooks,
+  getAllBooksFromSupabase,
   createBook,
   updateBook,
   deleteBook,
@@ -73,8 +74,8 @@ export function BooksPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const loadBooks = useCallback(() => {
-    const data = getAllBooks();
+  const loadBooks = useCallback(async () => {
+    const data = await getAllBooksFromSupabase();
     setBooks(data);
     setFiltered(data);
   }, []);
