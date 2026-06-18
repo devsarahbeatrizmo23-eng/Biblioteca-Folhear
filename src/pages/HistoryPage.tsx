@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { History, Search, X, Filter, BookOpen, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
 import { Loan, LoanStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { getLoansByUser, checkOverdueLoans } from '../services/mockData';
+import { getLoansByUserFromSupabase, checkOverdueLoans } from '../services/mockData';
 import { Input } from '../components/ui/Input';
 import { LoanStatusBadge } from '../components/ui/Badge';
 
@@ -20,10 +20,11 @@ export function HistoryPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     if (!user) return;
     checkOverdueLoans();
-    const data = getLoansByUser(user.id);
+    // Buscar do Supabase usando o UUID do usuário
+    const data = await getLoansByUserFromSupabase(user.id.toString());
     setLoans(data);
     setFiltered(data);
   }, [user]);
