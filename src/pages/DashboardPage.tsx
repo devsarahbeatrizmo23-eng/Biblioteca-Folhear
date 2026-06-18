@@ -20,6 +20,8 @@ import {
   checkOverdueLoans,
   getAllLoans,
   getLoansByUser,
+  getAllLoansFromSupabase,
+  getLoansByUserFromSupabase,
 } from '../services/mockData';
 import { LoanStatusBadge } from '../components/ui/Badge';
 import { Loan } from '../types';
@@ -34,16 +36,23 @@ export function DashboardPage() {
   const [recentLoans, setRecentLoans] = useState<Loan[]>([]);
 
   useEffect(() => {
-    checkOverdueLoans();
-    if (isAdmin) {
-      setStats(getDashboardStats());
-      const loans = getAllLoans().slice(-5).reverse();
-      setRecentLoans(loans);
-    } else if (user) {
-      setUserStats(getUserLoanStats(user.id));
-      const loans = getLoansByUser(user.id).slice(-5).reverse();
-      setRecentLoans(loans);
-    }
+    const loadData = async () => {
+      checkOverdueLoans();
+      
+      if (isAdmin) {
+        // Admins veem todos os empréstimos
+        const allLoans = await getAllLoansFromSupabase();
+        setStats(getDashboardStats());
+        setRecentLoans(allLoans.slice(0, 5));
+      } else if (user) {
+        // Leitores veem apenas seus empréstimos
+        const userLoans = await getLoansByUserFromSupabase(user.uuid);
+        setUserStats(getUserLoanStats(user.id));
+        setRecentLoans(userLoans.slice(0, 5));
+      }
+    };
+    
+    loadData();
   }, [isAdmin, user]);
 
   const formatDate = (dateStr: string) => {

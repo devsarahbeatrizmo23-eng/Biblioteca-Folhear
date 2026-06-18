@@ -490,6 +490,80 @@ export async function getLoansByUserFromSupabase(userUuid: string): Promise<Loan
   }
 }
 
+export async function getAllLoansFromSupabase(): Promise<Loan[]> {
+  try {
+    console.log('🔍 Buscando TODOS os empréstimos do Supabase...');
+    
+    const { data, error } = await supabase
+      .from('emprestimo')
+      .select(`
+        id,
+        user_id,
+        book_id,
+        loan_date,
+        expected_return_date,
+        actual_return_date,
+        status,
+        observations,
+        created_at
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ Erro ao buscar todos os empréstimos:', error.message);
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      console.log('⚠️ Nenhum empréstimo encontrado');
+      return [];
+    }
+
+    console.log(`✅ ${data.length} empréstimos encontrados`);
+
+    // Buscar dados dos livros e usuários para enriquecer os empréstimos
+    const loans: Loan[] = [];
+    for (const loan of data) {
+      const { data: book } = await supabase
+        .from('livro')
+        .select('title, author')
+        .eq('id', loan.book_id)
+        .single();
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('id', loan.user_id)
+        .single();
+
+      loans.push({
+        id: loan.id,
+        user_id: loan.user_id,
+        book_id: loan.book_id,
+        loan_date: loan.loan_date,
+        expected_return_date: loan.expected_return_date,
+        actual_return_date: loan.actual_return_date,
+        status: loan.status,
+        observations: loan.observations,
+        created_at: loan.created_at,
+        user_name: profile?.name || 'Usuário desconhecido',
+        user_email: '',
+        book_title: book?.title || 'Livro não encontrado',
+        book_author: book?.author || '',
+      });
+    }
+
+    // Sincronizar com localStorage
+    save(STORAGE_KEYS.LOANS, loans);
+    console.log('✅ Empréstimos sincronizados com localStorage');
+
+    return loans;
+  } catch (err) {
+    console.error('❌ Erro ao buscar empréstimos do Supabase:', err);
+    return [];
+  }
+}
+
 export async function createLoan(data: {
   user_id: string; // UUID string, não number
   book_id: number;
