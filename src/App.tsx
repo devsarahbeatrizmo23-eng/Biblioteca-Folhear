@@ -1,8 +1,10 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { MainLayout } from './components/layout/MainLayout';
+import { seedData } from './services/mockData';
 
 // Auth Pages
 import { LoginPage } from './pages/auth/LoginPage';
@@ -17,6 +19,9 @@ import { HistoryPage } from './pages/HistoryPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
 function App() {
+  useEffect(() => {
+    seedData();
+  }, []);
   return (
     <BrowserRouter>
       <ToastProvider>
